@@ -4,10 +4,37 @@ version = "0.1.0"
 authors = ["mandragore <gkonstandinos@gmail.com>"]
 edition = "2018"
 
+[features]
+integration-test = []
+x86 = []
+
+[[bin]]
+name = "test-basic_boot"
+path = "tests/test-basic-boot.rs"
+
+[[bin]]
+name = "test-panic"
+path = "tests/test-panic.rs"
+
+[[bin]]
+name = "test-exception"
+path = "tests/test-exception-breakpoint.rs"
+
+[[bin]]
+name = "test-double-fault"
+path = "tests/test-double-fault.rs"
+
 [dependencies]
+pic8259_simple = "0.1.1"
 bootloader = "0.3.12"
+uart_16550 = "0.1.0"
 volatile = "0.2.3"
+x86_64 = "0.4.0"
 spin = "0.4.9"
+
+[dev-dependencies.arrayvec]
+version = "0.4.10"
+features = ["array-sizes-33-128"]
 
 [profile.dev]
 panic = "abort"
