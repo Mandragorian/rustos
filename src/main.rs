@@ -19,18 +19,20 @@ entry_point!(kmain);
 
 #[cfg(not(test))]
 pub fn kmain(boot_info: &'static BootInfo) -> ! {
-    println!("Hello World{}", "!");
+
+    println!("Hello World{} {}", "!", boot_info.physical_memory_offset);
 
     rustos::arch::initialize();
 
-    let mut rtable = unsafe {
-        rustos::arch::memory::init(boot_info.p4_table_addr as usize)
-    };
-
+    use x86_64::{structures::paging::Page, VirtAddr};
+    let mut mapper = unsafe { rustos::arch::memory::init(boot_info.physical_memory_offset) };
     let mut frame_allocator = rustos::arch::memory::init_frame_allocator(&boot_info.memory_map);
+    let page = Page::containing_address(VirtAddr::new(0x1000));
+    rustos::arch::memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
 
-    rustos::arch::memory::create_example_mapping(&mut rtable,  &mut frame_allocator);
-    unsafe { (0xdeadbeef900 as *mut u64).write_volatile(0xf021f077f065f04e)};
+    // write the string `New!` to the screen through the new mapping
+    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
+    unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
 
     println!("It did not crash!");
     rustos::arch::halt_loop();

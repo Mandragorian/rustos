@@ -2,6 +2,7 @@ pub mod gdt;
 pub mod memory;
 pub mod interrupts;
 
+
 use x86_64::instructions::interrupts::without_interrupts;
 
 pub fn initialize() {

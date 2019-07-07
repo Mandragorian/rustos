@@ -11,7 +11,7 @@ use rustos::serial_println;
 pub extern "C" fn _start() -> ! {
     rustos::arch::initialize();
 
-    x86_64::instructions::int3();
+    x86_64::instructions::interrupts::int3();
 
     serial_println!("ok");
 
