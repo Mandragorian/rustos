@@ -1,6 +1,7 @@
 pub mod gdt;
 pub mod memory;
 pub mod interrupts;
+pub mod allocator;
 
 
 use x86_64::instructions::interrupts::without_interrupts;
