@@ -6,7 +6,7 @@ const  UART_PORT_1 : u16 = 0x3F8;
 
 lazy_static! {
     pub static ref SERIAL1: Mutex<SerialPort> = {
-        let mut serial_port = SerialPort::new(UART_PORT_1);
+        let mut serial_port = unsafe { SerialPort::new(UART_PORT_1) };
         serial_port.init();
         Mutex::new(serial_port)
     };

@@ -1,21 +1,25 @@
 #![feature(abi_x86_interrupt)]
 #![no_std]
-#![cfg_attr(not(test), no_main)]
+#![no_main]
 #![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
+#![feature(custom_test_frameworks)]
+#![test_runner(rustos::test::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-use rustos::test_suite::exit_qemu;
-use rustos::serial_println;
+use rustos::test::{exit_qemu, QemuExitCode};
+use rustos::{serial_print, serial_println, test_panic};
 use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 
-#[cfg(not(test))]
 #[no_mangle]
 #[allow(unconditional_recursion)]
 pub extern "C" fn _start() -> ! {
+    serial_print!("testing stack overflow double fault...");
     rustos::arch::initialize();
     init_test_idt();
 
     fn stack_overflow() {
+        let _a = [0u64; 1024];
         stack_overflow(); // for each recursion, the return address is pushed
     }
 
@@ -25,28 +29,12 @@ pub extern "C" fn _start() -> ! {
     serial_println!("failed");
     serial_println!("No exception occured");
 
-    unsafe {
-        exit_qemu();
-    }
+    exit_qemu(QemuExitCode::Failed);
 
     loop {}
 }
 
-/// This function is called on panic.
-#[cfg(not(test))]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    serial_println!("failed");
-    serial_println!("{}", info);
-
-    unsafe {
-        exit_qemu();
-    }
-
-    loop {}
-}
-
-use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable};
+use x86_64::structures::idt::{InterruptStackFrame, InterruptDescriptorTable};
 
 lazy_static! {
     static ref TEST_IDT: InterruptDescriptorTable = {
@@ -66,13 +54,13 @@ pub fn init_test_idt() {
 }
 
 extern "x86-interrupt" fn double_fault_handler(
-    _stack_frame: &mut ExceptionStackFrame,
+    _stack_frame: &mut InterruptStackFrame,
     _error_code: u64,
-) {
+) -> ! {
     serial_println!("ok");
 
-    unsafe {
-        exit_qemu();
-    }
+    exit_qemu(QemuExitCode::Success);
     loop {}
 }
+
+test_panic!(QemuExitCode::Failed);

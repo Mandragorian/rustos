@@ -1,5 +1,3 @@
-#![cfg_attr(test, allow(unused_imports))]
-
 use core::fmt;
 
 use spin::Mutex;
@@ -106,7 +104,7 @@ impl Writer {
         for byte in s.bytes() {
             match byte {
                 // printable ASCII byte or newline
-                0x20...0x7e | b'\n' => self.write_byte(byte),
+                0x20..=0x7e | b'\n' => self.write_byte(byte),
                 // not part of printable ASCII range
                 _ => self.write_byte(0xfe),
             }
@@ -154,91 +152,36 @@ pub fn _print(args: fmt::Arguments) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{serial_println, serial_print};
 
-    use arrayvec::ArrayVec;
-
-    fn construct_writer() -> Writer {
-        use std::boxed::Box;
-
-        let buffer = construct_buffer();
-        Writer {
-            column_position: 0,
-            color_code: ColorCode::new(Color::Blue, Color::Magenta),
-            buffer: Box::leak(Box::new(buffer)),
-        }
+    #[test_case]
+    fn test_println_simple() {
+        serial_print!("testing println...");
+        println!("something");
+        serial_println!("[ok]");
     }
 
-    fn construct_buffer() -> Buffer {
-        let mut rows = ArrayVec::<[_; BUFFER_HEIGHT]>::new();
-        for _row in 0..BUFFER_HEIGHT {
-            let mut column = ArrayVec::<[_; BUFFER_WIDTH]>::new();
-            for _col in 0..BUFFER_WIDTH {
-                column.push(Volatile::new(empty_char()));
-            }
-            rows.push(column.into_inner().ok().unwrap());
+    #[test_case]
+    fn test_prinln_many() {
+        serial_print!("testing many println's...");
+        for _ in 0..200 {
+            println!("something");
         }
-
-        Buffer {
-            chars: rows.into_inner().ok().unwrap()
-        }
+        serial_println!("[ok]");
     }
 
-    fn empty_char() -> ScreenChar {
-        ScreenChar {
-            ascii_character: b' ',
-            color_code: ColorCode::new(Color::Green, Color::Brown),
+    #[test_case]
+    fn test_println_output() {
+        serial_print!("test_println_output...");
+
+        let s = "Some test string that fits on a single line";
+        println!("{}", s);
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
         }
-    }
 
-    #[test]
-    fn write_byte() {
-        let mut writer = construct_writer();
-        writer.write_byte(b'X');
-        writer.write_byte(b'Y');
-
-        for (i, row) in writer.buffer.chars.iter().enumerate() {
-            for (j, screen_char) in row.iter().enumerate() {
-                let screen_char = screen_char.read();
-                if i == BUFFER_HEIGHT - 1 && j == 0 {
-                    assert_eq!(screen_char.ascii_character, b'X');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else if i == BUFFER_HEIGHT - 1 && j == 1 {
-                    assert_eq!(screen_char.ascii_character, b'Y');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else {
-                    assert_eq!(screen_char, empty_char());
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn write_formatted() {
-        use core::fmt::Write;
-
-        let mut writer = construct_writer();
-        writeln!(&mut writer, "a").unwrap();
-        writeln!(&mut writer, "b{}", "c").unwrap();
-
-        for (i, row) in writer.buffer.chars.iter().enumerate() {
-            for (j, screen_char) in row.iter().enumerate() {
-                let screen_char = screen_char.read();
-                if i == BUFFER_HEIGHT - 3 && j == 0 {
-                    assert_eq!(screen_char.ascii_character, b'a');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else if i == BUFFER_HEIGHT - 2 && j == 0 {
-                    assert_eq!(screen_char.ascii_character, b'b');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else if i == BUFFER_HEIGHT - 2 && j == 1 {
-                    assert_eq!(screen_char.ascii_character, b'c');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else if i >= BUFFER_HEIGHT - 2 {
-                    assert_eq!(screen_char.ascii_character, b' ');
-                    assert_eq!(screen_char.color_code, writer.color_code);
-                } else {
-                    assert_eq!(screen_char, empty_char());
-                }
-            }
-        }
+        serial_println!("[ok]");
     }
 }
+

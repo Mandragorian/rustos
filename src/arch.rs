@@ -1,4 +1,3 @@
-//pub mod x86;
 mod x86;
 
 #[cfg(feature = "x86")]

@@ -28,9 +28,25 @@ pub fn halt_loop() -> ! {
     }
 }
 
-pub fn read_port<T>(port_addr: u16) -> T 
+#[inline]
+fn read_port<T>(port_addr: u16) -> T
 where T: x86_64::structures::port::PortReadWrite
 {
-    let port = x86_64::instructions::port::Port::new(port_addr);
+    let mut port = x86_64::instructions::port::Port::new(port_addr);
     unsafe { port.read() }
+}
+
+#[inline]
+pub fn read_port_u8(port_addr: u16) -> u8 {
+    read_port(port_addr)
+}
+
+#[inline]
+pub fn read_port_u16(port_addr: u16) -> u16 {
+    read_port(port_addr)
+}
+
+#[inline]
+pub fn read_port_u32(port_addr: u16) -> u32 {
+    read_port(port_addr)
 }

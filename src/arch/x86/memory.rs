@@ -1,77 +1,23 @@
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 
-use x86_64::structures::paging::{Mapper, Page, PageTable, RecursivePageTable};
+use x86_64::structures::paging::{Mapper, Page, PageTable};
 use x86_64::structures::paging::{Size4KiB, FrameAllocator};
-use x86_64::structures::paging::{PhysFrame, MapperAllSizes, MappedPageTable};
-use x86_64::structures::paging::mapper::TranslateError;
+use x86_64::structures::paging::{UnusedPhysFrame, PhysFrame, MapperAllSizes, MappedPageTable};
 use x86_64::{VirtAddr, PhysAddr};
 
-///// Creates a RecursivePageTable instance from the level 4 address.
-/////
-///// This function is unsafe because it can break memory safety if an invalid
-///// address is passed.
-//#[feature(recursive_page_table)]
-//pub unsafe fn init(level_4_table_addr: usize) -> RecursivePageTable<'static> {
-//    fn init_inner(level_4_table_addr: usize) -> RecursivePageTable<'static> {
-//        let level_4_table_ptr = level_4_table_addr as *mut PageTable;
-//        let level_4_table = unsafe { &mut *level_4_table_ptr };
-//        RecursivePageTable::new(level_4_table).unwrap()
-//    }
-//
-//    init_inner(level_4_table_addr)
-//}
-//
-///// Returns the physical address for the given virtual address, or `None` if the
-///// virtual address is not mapped.
-//#[feature(recursive_page_table)]
-//pub fn translate_addr_recursive_mapping(addr: u64, recursive_page_table: &RecursivePageTable)
-//    -> Result<PhysAddr, TranslateError>
-//{
-//    let addr = VirtAddr::new(addr);
-//    let page: Page = Page::containing_address(addr);
-//
-//    // perform the translation
-//    let frame = recursive_page_table.translate_page(page);
-//    frame.map(|frame| frame.start_address() + u64::from(addr.page_offset()))
-//}
-//
-//
-//#[feature(recursive_page_table)]
-//pub fn create_example_mapping(
-//    recursive_page_table: &mut RecursivePageTable,
-//    frame_allocator: &mut impl FrameAllocator<Size4KiB>,) {
-//    use x86_64::structures::paging::PageTableFlags as Flags;
-//
-//    let page: Page = Page::containing_address(VirtAddr::new(0xdeadbeef000));
-//    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
-//    let flags = Flags::PRESENT | Flags::WRITABLE;
-//
-//    let map_to_result = unsafe {
-//        recursive_page_table.map_to(page, frame, flags, frame_allocator)
-//    };
-//    map_to_result.expect("map_to failed").flush();
-//}
 pub struct BootInfoFrameAllocator<I>
 where I: Iterator<Item = PhysFrame>
 {
     pub frames: I,
 }
 
-impl<I> FrameAllocator<Size4KiB> for BootInfoFrameAllocator<I>
+unsafe impl<I> FrameAllocator<Size4KiB> for BootInfoFrameAllocator<I>
 where I: Iterator<Item = PhysFrame>
 {
-    fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        self.frames.next()
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
+        self.frames.next().map(|f| unsafe { UnusedPhysFrame::new(f) })
     }
 }
-
-//impl<I> FrameDeallocator<Size4KiB> for BootInfoFrameAllocator<I>
-//where I: Iterator<Item = PhysFrame>
-//{
-//    fn deallocate_frame(&mut self, frame: PhysFrame) {
-//        self.frames.
-//    }
-//}
 
 /// Create a FrameAllocator from the passed memory map
 pub fn init_frame_allocator(
@@ -122,11 +68,10 @@ pub unsafe fn init(physical_memory_offset: u64) -> impl MapperAllSizes {
 /// complete physical memory is mapped to virtual memory at the passed
 /// `physical_memory_offset`. Also, this function must be only called once
 /// to avoid aliasing `&mut` references (which is undefined behavior).
-#[feature(map_physical_memory)]
 unsafe fn active_level_4_table(physical_memory_offset: u64)
     -> &'static mut PageTable
 {
-    use x86_64::{registers::control::Cr3, VirtAddr};
+    use x86_64::registers::control::Cr3;
 
     let (level_4_table_frame, _) = Cr3::read();
 
@@ -141,7 +86,6 @@ unsafe fn active_level_4_table(physical_memory_offset: u64)
 /// This function is safe to limit the scope of `unsafe` because Rust treats
 /// the whole body of unsafe functions as an unsafe block. This function must
 /// only be reachable through `unsafe fn` from outside of this module.
-#[feature(map_physical_memory)]
 fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: u64)
     -> Option<PhysAddr>
 {
@@ -178,7 +122,6 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: u64)
 
 /// Returns the physical address for the given virtual address, or `None` if the
 /// virtual address is not mapped.
-#[feature(map_physical_memory)]
 pub unsafe fn translate_addr_full_mapping(addr: VirtAddr, physical_memory_offset: u64) -> Option<PhysAddr> {
     translate_addr_inner(addr, physical_memory_offset)
 }
@@ -191,11 +134,10 @@ pub fn create_example_mapping(
 ) {
     use x86_64::structures::paging::PageTableFlags as Flags;
 
-    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
+    let frame = unsafe { UnusedPhysFrame::new(PhysFrame::containing_address(PhysAddr::new(0xb8000))) };
     let flags = Flags::PRESENT | Flags::WRITABLE;
 
-    let map_to_result = unsafe {
-        mapper.map_to(page, frame, flags, frame_allocator)
-    };
+    let map_to_result = mapper.map_to(page, frame, flags, frame_allocator);
+    println!("{:?}", map_to_result);
     map_to_result.expect("map_to failed").flush();
 }
