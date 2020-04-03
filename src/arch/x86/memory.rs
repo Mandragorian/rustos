@@ -2,7 +2,7 @@ use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 
 use x86_64::structures::paging::{Mapper, Page, PageTable};
 use x86_64::structures::paging::{Size4KiB, FrameAllocator};
-use x86_64::structures::paging::{UnusedPhysFrame, PhysFrame, MapperAllSizes, MappedPageTable};
+use x86_64::structures::paging::{UnusedPhysFrame, PhysFrame, MapperAllSizes, OffsetPageTable};
 use x86_64::{VirtAddr, PhysAddr};
 
 pub struct BootInfoFrameAllocator<I>
@@ -45,7 +45,7 @@ fn frame_to_page(frame: PhysFrame, physical_memory_offset: u64) -> VirtAddr {
     VirtAddr::new(phys + physical_memory_offset)
 }
 
-/// Initialize a new MappedPageTable.
+/// Initialize a new OffsetPageTable.
 ///
 /// This function is unsafe because the caller must guarantee that the
 /// complete physical memory is mapped to virtual memory at the passed
@@ -53,13 +53,7 @@ fn frame_to_page(frame: PhysFrame, physical_memory_offset: u64) -> VirtAddr {
 /// to avoid aliasing `&mut` references (which is undefined behavior).
 pub unsafe fn init(physical_memory_offset: u64) -> impl MapperAllSizes {
     let level_4_table = active_level_4_table(physical_memory_offset);
-    let phys_to_virt = move |frame: PhysFrame| -> *mut PageTable {
-        //let phys = frame.start_address().as_u64();
-        //let virt = VirtAddr::new(phys + physical_memory_offset);
-        //virt.as_mut_ptr()
-        frame_to_page(frame, physical_memory_offset).as_mut_ptr()
-    };
-    MappedPageTable::new(level_4_table, phys_to_virt)
+    OffsetPageTable::new(level_4_table, VirtAddr::new(physical_memory_offset))
 }
 
 /// Returns a mutable reference to the active level 4 table.

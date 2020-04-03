@@ -5,6 +5,8 @@
 #![test_runner(rustos::test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+#![feature(allocator_api)]
+
 use core::panic::PanicInfo;
 
 extern crate alloc;
@@ -29,6 +31,9 @@ fn fail_dealloc() {
     let _b = Box::new(41);
 }
 
+use core::alloc::Layout;
+struct TestStruct([u8; 800], u128, u128, u128, u128, u128, u128, u128, u128, u128, u128);
+
 #[cfg(not(test))]
 pub fn kmain(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{} {}", "!", boot_info.physical_memory_offset);
@@ -38,6 +43,9 @@ pub fn kmain(boot_info: &'static BootInfo) -> ! {
 
     use x86_64::{structures::paging::Page, VirtAddr};
     let mut mapper = unsafe { rustos::arch::memory::init(boot_info.physical_memory_offset) };
+
+    use x86_64::structures::paging::mapper::MapperAllSizes;
+    println!("0xb8001 - > {:?}", mapper.translate_addr(VirtAddr::new(0xb8001)));
     let mut frame_allocator = rustos::arch::memory::init_frame_allocator(&boot_info.memory_map);
     let page = Page::containing_address(VirtAddr::new(0x100000));
     rustos::arch::memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
@@ -46,11 +54,20 @@ pub fn kmain(boot_info: &'static BootInfo) -> ! {
     let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
     unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
 
-    rustos::arch::allocator::init_heap(&mut mapper, &mut frame_allocator)
+    rustos::arch::allocator::init(&mut mapper, &mut frame_allocator)
         .expect("failed to init heap");
+    let mut allocator = rustos::slab::SmallAllocator::new(rustos::slab::SLAB_1_START,
+                                                          rustos::slab::SLAB_2_START,
+                                                          rustos::slab::SLAB_3_START,
+                                                          rustos::slab::SLAB_4_START,
+                                                          rustos::slab::SLAB_4_START + 4096);
 
-    //let heap_value = Box::new(41);
-    //println!("heap_value at {:p}", heap_value);
+
+    use core::alloc::AllocRef;
+    use alloc::boxed::Box;
+
+    let heap_value = Box::new(41);
+    println!("heap_value at {:p}", heap_value);
     
     fail_dealloc();
 

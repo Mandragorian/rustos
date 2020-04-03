@@ -1,9 +1,12 @@
-use alloc::alloc::{GlobalAlloc, Layout};
-use core::ptr::null_mut;
-
 use x86_64::{
     structures::paging::{
-        mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
+        mapper::MapToError,
+        FrameAllocator,
+        Mapper,
+        Page,
+        PageTableFlags,
+        UnusedPhysFrame,
+        Size4KiB,
     },
     VirtAddr,
 };
@@ -12,21 +15,15 @@ use x86_64::{
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 
-
-pub struct Dummy;
-
-unsafe impl GlobalAlloc for Dummy {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        null_mut()
-    }
-
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        panic!("dealloc should be never called")
-    }
+pub fn init(
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+) -> Result<(), MapToError<Size4KiB>> {
+    init_heap(mapper, frame_allocator)
+        .and_then(|_| init_all_slabs(mapper, frame_allocator))
 }
 
-
-pub fn init_heap(
+fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
 ) -> Result<(), MapToError<Size4KiB>> {
@@ -50,5 +47,37 @@ pub fn init_heap(
         crate::ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
 
+    Ok(())
+}
+
+fn init_all_slabs(
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+) -> Result<(), MapToError<Size4KiB>> {
+    init_slab(mapper, frame_allocator, crate::slab::SLAB_1_START)
+        .and_then(|_| init_slab(mapper, frame_allocator,
+                                crate::slab::SLAB_2_START))
+        .and_then(|_| init_slab(mapper, frame_allocator,
+                                crate::slab::SLAB_3_START))
+        .and_then(|_| init_slab(mapper, frame_allocator,
+                                crate::slab::SLAB_4_START))
+
+}
+pub fn init_slab(
+    mapper: &mut impl Mapper<Size4KiB>,
+    allocator: &mut impl FrameAllocator<Size4KiB>,
+    slab_start: usize,
+) -> Result<(), MapToError<Size4KiB>> {
+    let frame = allocator.allocate_frame().unwrap().frame();
+
+    let page = Page::containing_address(VirtAddr::new(slab_start as u64));
+
+    use x86_64::structures::paging::PageTableFlags as Flags;
+    let flags = Flags::PRESENT | Flags::WRITABLE;
+
+    unsafe {
+        mapper.map_to(page, UnusedPhysFrame::new(frame), flags, allocator)?
+            .flush();
+    }
     Ok(())
 }
