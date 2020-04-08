@@ -27,14 +27,6 @@ fn panic(info: &PanicInfo) -> ! {
 
 
 #[cfg(not(test))]
-fn fail_dealloc() {
-    let _b = Box::new(41);
-}
-
-use core::alloc::Layout;
-struct TestStruct([u8; 800], u128, u128, u128, u128, u128, u128, u128, u128, u128, u128);
-
-#[cfg(not(test))]
 pub fn kmain(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{} {}", "!", boot_info.physical_memory_offset);
 
@@ -56,27 +48,24 @@ pub fn kmain(boot_info: &'static BootInfo) -> ! {
 
     rustos::arch::allocator::init(&mut mapper, &mut frame_allocator)
         .expect("failed to init heap");
-    let mut allocator = rustos::slab::SmallAllocator::new(rustos::slab::SLAB_1_START,
-                                                          rustos::slab::SLAB_2_START,
-                                                          rustos::slab::SLAB_3_START,
-                                                          rustos::slab::SLAB_4_START,
-                                                          rustos::slab::SLAB_4_START + 4096);
 
 
-    use core::alloc::AllocRef;
-    use alloc::boxed::Box;
-
-    let heap_value = Box::new(41);
-    println!("heap_value at {:p}", heap_value);
+    let heap_value = Box::new(41usize);
     
-    fail_dealloc();
-
-    // create a dynamically sized vector
-    let mut vec = Vec::new();
+    let mut vec = Vec::with_capacity(500);
     for i in 0..500 {
         vec.push(i);
     }
     println!("vec at {:p}", vec.as_slice());
+    println!("heap_value at {:p}", heap_value);
+    println!("heap_value size {:x}", core::mem::size_of::<Box<usize>>());
+
+    drop(vec);
+    drop(heap_value);
+
+    println!("dropped===============");
+    let heap_value = Box::new(41usize);
+    println!("heap_value at {:p}", heap_value);
 
     // create a reference counted vector -> will be freed when count reaches 0
     let reference_counted = Rc::new(vec![1, 2, 3]);

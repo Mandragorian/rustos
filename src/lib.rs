@@ -6,10 +6,12 @@
 #![cfg_attr(test, feature(custom_test_frameworks))]
 #![cfg_attr(test, test_runner(crate::test::test_runner))]
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
+#![feature(const_fn)]
 
-mod stack;
-mod sync;
+pub mod stack;
+pub mod sync;
 pub mod slab;
+pub mod linked_list_allocator;
 
 extern crate alloc;
 
@@ -24,10 +26,10 @@ pub mod arch;
 #[macro_use]
 pub mod test;
 
-use linked_list_allocator::LockedHeap;
+use crate::linked_list_allocator::LockedList;
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: LockedList = LockedList::empty();
 
 
 #[alloc_error_handler]

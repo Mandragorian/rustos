@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use core::alloc::{AllocErr, Layout};
-use alloc::alloc::{AllocRef, GlobalAlloc};
+use alloc::alloc::AllocRef;
 
 use core::ptr::NonNull;
 
