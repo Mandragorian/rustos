@@ -1,7 +1,7 @@
 
 pub struct Block {
-    pub next: Option<&'static mut Block>,
-    pub size: usize,
+    next: Option<&'static mut Block>,
+    size: usize,
 }
 
 fn copy_pointer(r: & Block) ->  &'static mut Block {
