@@ -5,22 +5,14 @@ use alloc::alloc::AllocRef;
 
 use core::ptr::NonNull;
 
-const SMALL_HEAP_START: usize = 0xaab7000;
-const FRAME_SIZE: usize = 0x1000;
-const SLAB_SIZE: usize = 1 * FRAME_SIZE;
 
 const SLAB_1_FRAGSIZE: usize = 128;
 const SLAB_2_FRAGSIZE: usize = 256;
 const SLAB_3_FRAGSIZE: usize = 512;
 const SLAB_4_FRAGSIZE: usize = 1024;
 
-pub const SLAB_1_START: usize = SMALL_HEAP_START;
-pub const SLAB_2_START: usize = SLAB_1_START + SLAB_SIZE;
-pub const SLAB_3_START: usize = SLAB_2_START + SLAB_SIZE;
-pub const SLAB_4_START: usize = SLAB_3_START + SLAB_SIZE;
 
-
-use crate::stack::{SizedBlockStack, Block};
+use crate::heap::stack::{SizedBlockStack, Block};
 
 struct SingleSlabAlloc {
     frags: SizedBlockStack,

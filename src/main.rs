@@ -25,7 +25,6 @@ fn panic(info: &PanicInfo) -> ! {
     rustos::arch::halt_loop()
 }
 
-
 #[cfg(not(test))]
 pub fn kmain(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{} {}", "!", boot_info.physical_memory_offset);
@@ -46,13 +45,21 @@ pub fn kmain(boot_info: &'static BootInfo) -> ! {
     let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
     unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
 
-    rustos::arch::allocator::init(&mut mapper, &mut frame_allocator)
+    rustos::arch::heap::init(&mut mapper, &mut frame_allocator)
         .expect("failed to init heap");
+
+    let slabloc = rustos::heap::slab::SmallAllocator::new(rustos::arch::heap::SLAB_1_START,
+                                                          rustos::arch::heap::SLAB_2_START,
+                                                          rustos::arch::heap::SLAB_3_START,
+                                                          rustos::arch::heap::SLAB_4_START,
+                                                          rustos::arch::heap::LINKED_LIST_START);
+
+
 
 
     let heap_value = Box::new(41usize);
     
-    let mut vec = Vec::with_capacity(500);
+    let mut vec: Vec<usize> = Vec::with_capacity(500);
     for i in 0..500 {
         vec.push(i);
     }

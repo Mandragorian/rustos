@@ -8,10 +8,8 @@
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
 #![feature(const_fn)]
 
-pub mod stack;
 pub mod sync;
-pub mod slab;
-pub mod linked_list_allocator;
+pub mod heap;
 
 extern crate alloc;
 
@@ -26,7 +24,7 @@ pub mod arch;
 #[macro_use]
 pub mod test;
 
-use crate::linked_list_allocator::LockedList;
+use crate::heap::linked_list_allocator::LockedList;
 
 #[global_allocator]
 static ALLOCATOR: LockedList = LockedList::empty();

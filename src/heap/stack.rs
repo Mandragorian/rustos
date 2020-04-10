@@ -4,13 +4,21 @@ pub struct Block {
     pub size: usize,
 }
 
-fn copy_pointer(r: &mut Block) ->  &'static mut Block {
+fn copy_pointer(r: & Block) ->  &'static mut Block {
     let r_as_raw = r as *const Block;
     let new = r_as_raw.clone() as usize;
     unsafe { Block::ref_from_address(new) }
 }
 
 impl Block {
+
+    pub const fn new() -> Block {
+        Block {
+            size: 0,
+            next: None,
+        }
+    }
+
     pub unsafe fn ref_from_address(addr: usize) -> &'static mut Block {
         let block = addr as *mut Block;
         &mut *block
@@ -75,12 +83,13 @@ impl core::fmt::Debug for Block {
 #[derive(Debug)]
 pub struct BlockList {
     len: usize,
-    pub head: Option<&'static mut Block>,
+    pub head: Block,
 }
 
 impl BlockList {
     pub const fn new() -> BlockList {
-        BlockList { len: 0, head: None }
+        let head = Block::new();
+        BlockList { len: 0, head }
     }
 
     pub fn len(&self) -> usize {
@@ -88,15 +97,15 @@ impl BlockList {
     }
 
     pub fn push(&mut self, block: &'static mut Block) {
-        let mut hint = self.head.take();
+        let mut hint = self.head.next.take();
         self.insert(&mut hint, block);
-        self.head = hint.take();
+        self.head.next = hint.take();
     }
 
     pub fn pop(&mut self) -> Option<&'static mut Block> {
-        self.head.take().map(|block| {
+        self.head.next.take().map(|block| {
             self.len -= 1;
-            self.head = block.next.take();
+            self.head.next = block.next.take();
             block
         })
     }
@@ -111,13 +120,27 @@ impl BlockList {
         *hint = Some(block);
     }
 
+    pub fn find_block(&mut self, size: usize) -> Option<&'static mut Block> {
+        let mut cur = &mut self.head;
+            while let Some(ref mut b) = cur.next {
+                if let Ok(()) = Block::split(b, size) {
+                    //let addr = Block::usize_from_ref(b);
+                    //println!("allocating: {:x}", addr);
+                    let copy = copy_pointer(&b);
+                    cur.next = b.next.take();
+                    return Some(copy);
+                } else {
+                    cur = cur.next.as_mut().unwrap();
+                }
+            }
+            None
+    }
+
     pub fn iter(&mut self) -> Iter {
-        let head = self.head.take();
-        let (cur, mut head) = match head {
-            None => (None, None),
-            Some(r) => (Some(copy_pointer(r)), Some(r))
+        let cur = match &self.head.next {
+            None => None,
+            Some(r) => Some(copy_pointer(r)),
         };
-        self.head = head.take();
         Iter {
             cur,
         }
