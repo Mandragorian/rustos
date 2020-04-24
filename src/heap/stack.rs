@@ -1,8 +1,14 @@
+use crate::{print, println};
 
 pub struct Block {
     next: Option<&'static mut Block>,
     size: usize,
 }
+
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
 
 fn copy_pointer(r: & Block) ->  &'static mut Block {
     let r_as_raw = r as *const Block;
@@ -42,23 +48,91 @@ impl Block {
         self.size
     }
 
-    pub fn split(block: &mut Block, requested_size: usize) -> Result<(), ()> {
+    /// Check if the block is big enough to allocate requested_size memory
+    ///
+    /// If the block is too big, a new block will be created to prevent fragmentation
+    pub fn split(block: &mut Block, requested_size: usize) -> Result<Option<&'static mut Block>, ()> {
         let min_block_size = core::mem::size_of::<Block>();
+
+        // We can't allocate memory less than min_block_size, otherwise we would not
+        // be able to reinsert it in the list
         let size = core::cmp::max(requested_size, min_block_size);
+
         if block.get_size() < size {
             return Err(());
-        } else if block.get_size() > size + min_block_size {
-            let raw = Block::raw_from_ref(block);
-            let addr = raw as usize;
+        }
+
+        // The block is big enough, but too big
+        // We split
+        if block.get_size() > size + min_block_size {
+            let addr = Block::usize_from_ref(block);
             let new_addr = addr + size;
             let old_size = block.get_size();
 
             let mut new_block = unsafe { Block::ref_from_address(new_addr) };
             new_block.size(old_size - size);
-            new_block.next = block.next.take();
-            block.next = Some(new_block);
+            Ok(Some(new_block))
+        } else {
+            Ok(None)
         }
-        Ok(())
+    }
+
+    /// Check if the block is big enough to allocate `requested_size` memeory aligned to `align`.
+    pub fn split_aligned(
+        block: &mut Block,
+        requested_size: usize,
+        align: usize,
+    ) -> Result<(Option<&'static mut Block>, Option<&'static mut Block>), ()> {
+
+        let min_block_size = core::mem::size_of::<Block>();
+        let block_size = block.get_size();
+        let block_start = Block::usize_from_ref(block);
+        let block_end = block_start + block_size - 1;
+
+        // If block already aligned, just call split
+        if block_start % align == 0 {
+            Block::split(block, requested_size).map(|r| (None, r))
+        } else {
+            let aligned_start = align_up(block_start, align);
+
+            // Alignment padding is too small to hold a new block,
+            // We can't use this block.
+            if aligned_start - block_start < min_block_size {
+                return Err(());
+            }
+
+            // Aligned address exceeds block memory region
+            if aligned_start > block_end {
+                return Err(());
+            }
+
+            // Size of block after alignment is too small
+            if block_end - aligned_start + 1 < requested_size {
+                return Err(());
+            }
+
+            // XXX: This API probably sucks
+            //
+            // due to the way the linked list was written this API does some weird
+            // juggling. The linked list in find_block used to assume that if split() returns Ok,
+            // then the current block can be used for allocation. When memory alignment was added
+            // this is no longer true as the aligned address will not be the same as the block's
+            // address. This resulted in quite a bit of convoluted code. I should sanitize it.
+
+            // rest is the block that holds the memory region after the alignment padding
+            // The unwraps here are because we already know that the split will be successful, and
+            // also create a new block
+            let rest = Block::split(block, aligned_start - block_start).unwrap().unwrap();
+
+            // right is the block that holds the memory after the allocated region
+            // The unwrap here is because we know that the split will be successful, but we don't
+            // know if it will create a new block.
+            let right = Block::split(rest, requested_size).unwrap();
+            block.size(aligned_start - block_start);
+
+            Ok((Some(rest), right))
+
+        }
     }
 }
 
@@ -120,15 +194,45 @@ impl BlockList {
         *hint = Some(block);
     }
 
-    pub fn find_block(&mut self, size: usize) -> Option<&'static mut Block> {
+    pub fn find_block(&mut self, size: usize, align: usize) -> Option<&'static mut Block> {
         let mut cur = &mut self.head;
             while let Some(ref mut b) = cur.next {
-                if let Ok(()) = Block::split(b, size) {
-                    //let addr = Block::usize_from_ref(b);
-                    //println!("allocating: {:x}", addr);
-                    let copy = copy_pointer(&b);
-                    cur.next = b.next.take();
-                    return Some(copy);
+                let res = Block::split_aligned(b, size, align);
+                if let Ok(ok) = res {
+                    let (new_next, to_return): (Option<&'static mut Block>, _) = match ok {
+                        // No alignment padding, and no splitted block.
+                        // Change cur.next to point to b.next.
+                        // Return b's start address
+                        (None, None) => (b.next.take(), copy_pointer(b)),
+
+                        // Alignment padding but not splitted.
+                        // cur.next should still be pointing to this block.
+                        // Return alloc, which is the block that starts at the aligned address
+                        (Some(alloc), None) => {
+                            (Some(copy_pointer(b)), copy_pointer(alloc))
+                        },
+
+                        // No alignment but splitted block
+                        // cur.next should be right. right.next should be b.next to keep list
+                        // connected
+                        // Return the start address of b
+                        (None, Some(mut right)) => {
+                            right.next = b.next.take();
+                            (Some(right), copy_pointer(b))
+                        },
+
+                        // Alignment pad and splitted block
+                        // cur.next should still be this block, this block's next should be right,
+                        // right next should be this block's next to keep list connected.
+                        // Return alloc which is a block with aligned address.
+                        (Some(alloc), Some(mut right)) => {
+                            right.next = b.next.take();
+                            b.next = Some(right);
+                            (Some(copy_pointer(b)), copy_pointer(alloc))
+                        },
+                    };
+                    cur.next = new_next;
+                    return Some(to_return);
                 } else {
                     cur = cur.next.as_mut().unwrap();
                 }
@@ -212,8 +316,8 @@ mod test {
 
         serial_print!("testing SizedBlockStack...");
 
-        let mut stack = SizedBlockStack::new(crate::slab::SLAB_1_START, size, num);
-        let mut start_addr = crate::slab::SLAB_1_START + (num - 1) * size;
+        let mut stack = SizedBlockStack::new(crate::arch::heap::SLAB_1_START, size, num);
+        let mut start_addr = crate::arch::heap::SLAB_1_START + (num - 1) * size;
 
         while let Some(b_ptr) = stack.pop() {
             assert_eq!(b_ptr.size, size);

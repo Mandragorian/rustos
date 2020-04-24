@@ -32,10 +32,7 @@ impl LinkedListAllocator {
     }
 
     pub fn allocate(&mut self, size: usize, align: usize) -> Option<usize> {
-        let actual_size = size + align;
-        self.list.find_block(actual_size).map(|b| {
-            align_up(Block::usize_from_ref(b), align)
-        })
+        self.list.find_block(size, align).map(|b| Block::usize_from_ref(b))
     }
 
     pub fn deallocate(&mut self,block: &'static mut Block) {
