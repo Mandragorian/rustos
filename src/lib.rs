@@ -48,7 +48,7 @@ pub extern "C" fn _start(boot_info: &'static BootInfo) -> ! {
     let mut mapper = unsafe { crate::arch::memory::init(boot_info.physical_memory_offset) };
     let mut frame_allocator = crate::arch::memory::init_frame_allocator(&boot_info.memory_map);
 
-    crate::arch::allocator::init(&mut mapper, &mut frame_allocator)
+    crate::arch::heap::init(&mut mapper, &mut frame_allocator)
         .expect("failed to init heap");
 
     test_main();
