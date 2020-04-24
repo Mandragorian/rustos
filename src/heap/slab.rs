@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use core::alloc::{AllocErr, Layout};
-use alloc::alloc::AllocRef;
+use alloc::alloc::{MemoryBlock, AllocRef, AllocInit};
 
 use core::ptr::NonNull;
 
@@ -80,15 +80,15 @@ impl SmallAllocator {
         }
     }
 
-        fn allocate_next_frag(&mut self, size: usize) -> Result<(NonNull<u8>, usize), AllocErr> {
+    fn allocate_next_frag(&mut self, size: usize) -> Result<MemoryBlock, AllocErr> {
         if size <= SLAB_1_FRAGSIZE {
-            self.slab_alloc128.allocate().map(|r| (r, SLAB_1_FRAGSIZE))
+            self.slab_alloc128.allocate().map(|ptr| MemoryBlock { ptr, size: SLAB_1_FRAGSIZE })
         } else if size <= SLAB_2_FRAGSIZE {
-            self.slab_alloc256.allocate().map(|r| (r, SLAB_2_FRAGSIZE))
+            self.slab_alloc256.allocate().map(|ptr| MemoryBlock { ptr, size: SLAB_2_FRAGSIZE })
         } else if size <= SLAB_3_FRAGSIZE {
-            self.slab_alloc512.allocate().map(|r| (r, SLAB_3_FRAGSIZE))
+            self.slab_alloc512.allocate().map(|ptr| MemoryBlock { ptr, size: SLAB_3_FRAGSIZE })
         } else if size <= SLAB_4_FRAGSIZE {
-            self.slab_alloc1024.allocate().map(|r| (r, SLAB_4_FRAGSIZE))
+            self.slab_alloc1024.allocate().map(|ptr| MemoryBlock { ptr, size: SLAB_4_FRAGSIZE })
         } else {
             Err(AllocErr)
         }
@@ -96,7 +96,7 @@ impl SmallAllocator {
 }
 
 unsafe impl AllocRef for SmallAllocator {
-    fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+    fn alloc(&mut self, layout: Layout, _init: AllocInit) -> Result<MemoryBlock, AllocErr> {
         let size = layout.size();
         self.allocate_next_frag(size)
     }
@@ -115,4 +115,3 @@ unsafe impl AllocRef for SmallAllocator {
         }
     }
 }
-
