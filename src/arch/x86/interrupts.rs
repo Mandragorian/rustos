@@ -82,7 +82,7 @@ extern "x86-interrupt" fn kbd_interrupt_handler(
     _stack_frame: &mut InterruptStackFrame)
 {
     let scancode = crate::arch::x86::read_port_u8(0x60);
-    println!("{}", scancode);
+    crate::cooperative::keyboard::add_scancode(scancode);
     unsafe { PICS.lock().notify_end_of_interrupt(KBD_INTERRUPT_ID) }
 }
 
