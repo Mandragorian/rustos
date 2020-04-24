@@ -21,6 +21,8 @@ pub mod serial;
 
 pub mod arch;
 
+pub mod cooperative;
+
 #[macro_use]
 pub mod test;
 
