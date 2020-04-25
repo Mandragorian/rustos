@@ -91,3 +91,15 @@ pub fn init_interrupts() {
     unsafe {PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
 }
+
+pub fn enable() {
+    x86_64::instructions::interrupts::enable();
+}
+
+pub fn disable() {
+    x86_64::instructions::interrupts::disable();
+}
+
+pub fn enable_interrupt_halt() {
+    x86_64::instructions::interrupts::enable_interrupts_and_hlt()
+}
