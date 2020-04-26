@@ -25,6 +25,8 @@ lazy_static! {
 	   .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
 	}
         idt.page_fault.set_handler_fn(page_fault_handler);
+        idt.stack_segment_fault.set_handler_fn(stack_seg_interrupt_handler);
+        idt.alignment_check.set_handler_fn(align_check_interrupt_handler);
         idt[usize::from(TIMER_INTERRUPT_ID)].set_handler_fn(timer_interrupt_handler);
         idt[usize::from(KBD_INTERRUPT_ID)].set_handler_fn(kbd_interrupt_handler);
 
@@ -84,6 +86,22 @@ extern "x86-interrupt" fn kbd_interrupt_handler(
     let scancode = crate::arch::x86::read_port_u8(0x60);
     crate::cooperative::keyboard::add_scancode(scancode);
     unsafe { PICS.lock().notify_end_of_interrupt(KBD_INTERRUPT_ID) }
+}
+
+extern "x86-interrupt" fn align_check_interrupt_handler(
+    _stack_frame: &mut InterruptStackFrame,
+    err_code: u64)
+{
+    println!("Align check exception!");
+    crate::arch::x86::halt_loop()
+}
+
+extern "x86-interrupt" fn stack_seg_interrupt_handler(
+    _stack_frame: &mut InterruptStackFrame,
+    err_code: u64)
+{
+    println!("Stack Seg check exception!");
+    crate::arch::x86::halt_loop()
 }
 
 pub fn init_interrupts() {
