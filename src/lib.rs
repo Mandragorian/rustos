@@ -29,6 +29,11 @@ pub mod test;
 
 use crate::heap::linked_list_allocator::LockedList;
 
+#[cfg(feature = "external_allocator")]
+#[global_allocator]
+static ALLOCATOR: linked_list_allocator::LockedHeap = linked_list_allocator::LockedHeap::empty();
+
+#[cfg(not(feature = "external_allocator"))]
 #[global_allocator]
 static ALLOCATOR: LockedList = LockedList::empty();
 
