@@ -64,6 +64,14 @@ pub extern "C" fn _start(boot_info: &'static BootInfo) -> ! {
     loop {}
 }
 
+use bootloader::bootinfo::BootInfo;
+pub fn init(boot_info: &'static BootInfo) {
+    crate::arch::initialize();
+    let mut mapper = unsafe { crate::arch::memory::init(boot_info.physical_memory_offset) };
+    let mut frame_allocator = crate::arch::memory::init_frame_allocator(&boot_info.memory_map);
+    crate::arch::heap::init(&mut mapper, &mut frame_allocator)
+        .expect("failed to init the heap");
+}
 
 #[cfg(test)]
 use crate::test::{exit_qemu, QemuExitCode};

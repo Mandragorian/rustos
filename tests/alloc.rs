@@ -25,19 +25,7 @@ entry_point!(test_kmain);
 /// named `_start` by default.
 #[no_mangle] // don't mangle the name of this function
 pub fn test_kmain(boot_info: &'static BootInfo) -> ! {
-    rustos::arch::initialize();
-    use x86_64::{structures::paging::Page, VirtAddr};
-    let mut mapper = unsafe { rustos::arch::memory::init(boot_info.physical_memory_offset) };
-
-    use x86_64::structures::paging::mapper::MapperAllSizes;
-    let mut frame_allocator = rustos::arch::memory::init_frame_allocator(&boot_info.memory_map);
-
-    let page = Page::containing_address(VirtAddr::new(0x100000));
-    rustos::arch::memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
-
-    rustos::arch::heap::init(&mut mapper, &mut frame_allocator)
-        .expect("failed to init heap");
-
+    rustos::init(boot_info);
     test_main();
     serial_println!("exiting");
     exit_qemu(QemuExitCode::Success);
