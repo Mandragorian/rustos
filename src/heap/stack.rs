@@ -93,12 +93,11 @@ impl Block {
         if block_start % align == 0 {
             Block::split(block, requested_size).map(|r| (None, r))
         } else {
-            let aligned_start = align_up(block_start, align);
+            let mut aligned_start = align_up(block_start, align);
 
-            // Alignment padding is too small to hold a new block,
-            // We can't use this block.
-            if aligned_start - block_start < min_block_size {
-                return Err(());
+            // Increase aligned_start untill padding is big enough to hold a block
+            while aligned_start - block_start < min_block_size {
+                aligned_start = align_up(aligned_start + 1, align);
             }
 
             // Aligned address exceeds block memory region

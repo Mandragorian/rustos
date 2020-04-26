@@ -67,7 +67,10 @@ unsafe impl GlobalAlloc for LockedList {
         let size = layout.size();
         let align = layout.align();
         list.allocate(size, align)
-            .map_or_else(null_mut, |ptr| ptr as *mut u8)
+            .map_or_else(null_mut, |ptr| {
+                assert_eq!(ptr % align, 0);
+                ptr as *mut u8
+            })
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let raw = ptr as *mut Block;
