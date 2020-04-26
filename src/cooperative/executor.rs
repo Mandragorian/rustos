@@ -18,11 +18,47 @@ use crate::println;
 
 const WAKE_Q_SIZE: usize = 100;
 
-pub enum ExecutorError {
+#[cfg(feature = "spawner")]
+#[derive(Clone)]
+pub struct Spawner {
+    spawn_queue: Arc<spin::Mutex<VecDeque<Task>>>,
+}
 
+#[cfg(feature = "spawner")]
+impl Spawner {
+    fn new() -> Spawner {
+        let spawn_queue = Arc::new(spin::Mutex::new(VecDeque::new()));
+        Spawner {
+            spawn_queue,
+        }
+    }
+
+    pub fn spawn(&mut self, task: Task) -> Result<(), ExecutorError> {
+        let task_id = task.id();
+        self.spawn_queue.lock().push_back(task);
+        Ok(())
+    }
+
+    fn tasks(&mut self) -> spin::MutexGuard<VecDeque<Task>> {
+        self.spawn_queue.lock()
+    }
+
+    fn pop(&mut self) -> Option<Task> {
+        self.spawn_queue.lock().pop_front()
+    }
+
+    fn len(&self) -> usize {
+        self.spawn_queue.lock().len()
+    }
+}
+
+pub enum ExecutorError {
 }
 
 pub struct Executor {
+    #[cfg(feature = "spawner")]
+    spawner: Spawner,
+
     task_queue: VecDeque<Task>,
     waiting_tasks: BTreeMap<TaskId, Task>,
     wake_queue: Arc<ArrayQueue<TaskId>>,
@@ -32,6 +68,9 @@ pub struct Executor {
 impl Executor {
     pub fn new() -> Self {
         Executor {
+            #[cfg(feature = "spawner")]
+            spawner: Spawner::new(),
+
             task_queue: VecDeque::new(),
             waiting_tasks: BTreeMap::new(),
             wake_queue: Arc::new(ArrayQueue::new(WAKE_Q_SIZE)),
@@ -39,9 +78,20 @@ impl Executor {
         }
     }
 
+    #[cfg(feature = "spawner")]
+    pub fn spawn(&mut self, task: Task) -> Result<(), ExecutorError> {
+        self.spawner.spawn(task)
+    }
+
+    #[cfg(not(feature = "spawner"))]
     pub fn spawn(&mut self, task: Task) -> Result<(), ExecutorError> {
         self.task_queue.push_back(task);
         Ok(())
+    }
+
+    #[cfg(feature = "spawner")]
+    pub fn get_spawner(&self) -> Spawner {
+        self.spawner.clone()
     }
 
     fn create_waker(&self, task: &Task) -> Waker {
@@ -77,8 +127,18 @@ impl Executor {
         }
     }
 
+    #[cfg(feature = "spawner")]
+    fn spawn_tasks(&mut self) {
+        while let Some(task) = self.spawner.pop() {
+            self.task_queue.push_back(task);
+        }
+    }
+
     pub fn run(&mut self) {
         loop {
+            #[cfg(feature = "spawner")]
+            self.spawn_tasks();
+
             self.wake_tasks();
             self.run_ready();
 
