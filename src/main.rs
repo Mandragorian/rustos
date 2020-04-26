@@ -10,7 +10,8 @@
 use core::panic::PanicInfo;
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
+use alloc::{alloc::alloc, boxed::Box, vec, vec::Vec, rc::Rc};
+use alloc::alloc::Layout;
 
 use bootloader::{bootinfo::BootInfo, entry_point};
 
@@ -30,61 +31,46 @@ pub fn kmain(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{} {}", "!", boot_info.physical_memory_offset);
 
 
-    rustos::arch::initialize();
 
-    use x86_64::{structures::paging::Page, VirtAddr};
-    let mut mapper = unsafe { rustos::arch::memory::init(boot_info.physical_memory_offset) };
-
-    use x86_64::structures::paging::mapper::MapperAllSizes;
-    println!("0xb8001 - > {:?}", mapper.translate_addr(VirtAddr::new(0xb8001)));
-    let mut frame_allocator = rustos::arch::memory::init_frame_allocator(&boot_info.memory_map);
-    let page = Page::containing_address(VirtAddr::new(0x100000));
-    rustos::arch::memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
-
-    // write the string `New!` to the screen through the new mapping
-    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
-    unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
-
-    rustos::arch::heap::init(&mut mapper, &mut frame_allocator)
-        .expect("failed to init heap");
-
-    let slabloc = rustos::heap::slab::SmallAllocator::new(rustos::arch::heap::SLAB_1_START,
-                                                          rustos::arch::heap::SLAB_2_START,
-                                                          rustos::arch::heap::SLAB_3_START,
-                                                          rustos::arch::heap::SLAB_4_START,
-                                                          rustos::arch::heap::LINKED_LIST_START);
-
-
-
-
-    let heap_value = Box::new(41usize);
+    rustos::init(boot_info);
     
-    let mut vec: Vec<usize> = Vec::with_capacity(500);
-    for i in 0..500 {
-        vec.push(i);
-    }
-    println!("vec at {:p}", vec.as_slice());
-    println!("heap_value at {:p}", heap_value);
-    println!("heap_value size {:x}", core::mem::size_of::<Box<usize>>());
-
-    drop(vec);
-    drop(heap_value);
-
-    println!("dropped===============");
-    let heap_value = Box::new(41usize);
-    println!("heap_value at {:p}", heap_value);
-
-    // create a reference counted vector -> will be freed when count reaches 0
-    let reference_counted = Rc::new(vec![1, 2, 3]);
-    let cloned_reference = reference_counted.clone();
-    println!("current reference count is {}", Rc::strong_count(&cloned_reference));
-    core::mem::drop(reference_counted);
-    println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+    let mut executor = rustos::cooperative::executor::Executor::new();
+    let spawner = executor.get_spawner();
+    println!("got spawner");
+    let task1 = rustos::cooperative::task::Task::new(buggy_example_task(spawner.clone()));
+    println!("got task1");
+    let task2 = rustos::cooperative::task::Task::new(keyboard_printer(spawner.clone()));
+    println!("got task2");
+    executor.spawn(task1);
+    println!("spawned task1");
+    executor.spawn(task2);
+    println!("spawned task2");
+    executor.run();
 
     println!("It did not crash!");
     rustos::arch::halt_loop();
 }
 
+async fn keyboard_printer(mut spawner: rustos::cooperative::executor::Spawner) {
+    use futures_util::stream::StreamExt;
+    let mut codes = rustos::cooperative::keyboard::ScancodeStream::new();
+
+    while let Some(scancode) = codes.next().await {
+        println!("{}", scancode);
+    }
+}
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn buggy_example_task(mut spawner: rustos::cooperative::executor::Spawner) {
+    let number = async_number().await;
+    let mut i = 0;
+    println!("async number: {}", number);
+    let new_task = rustos::cooperative::task::Task::new(buggy_example_task(spawner.clone()));
+    spawner.spawn(new_task);
+}
 
 // TESTS
 #[cfg(test)]
