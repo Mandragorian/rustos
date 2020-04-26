@@ -44,3 +44,4 @@ macro_rules! test_panic {
     }
 }
 
+pub fn breakpoint() {}
