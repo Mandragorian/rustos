@@ -69,6 +69,8 @@ unsafe impl GlobalAlloc for LockedList {
         list.allocate(size, align)
             .map_or_else(null_mut, |ptr| {
                 assert_eq!(ptr % align, 0);
+                assert!(ptr >= crate::arch::heap::LINKED_LIST_START);
+                assert!(ptr + size - 1 < crate::arch::heap::HEAP_END);
                 ptr as *mut u8
             })
     }
@@ -79,7 +81,7 @@ unsafe impl GlobalAlloc for LockedList {
         let align = layout.align();
         let size = layout.size();
 
-        b.size(align + size);
+        b.size(size);
 
         let mut list = self.list.lock();
         list.deallocate(b);
