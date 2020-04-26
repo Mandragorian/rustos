@@ -17,6 +17,14 @@ impl TaskId {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         TaskId(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
+
+    /// Create TaskId from usize
+    ///
+    /// This function is unsafe as TaskId's must be unique.
+    /// Right now, the only reason to use this is for debuging purposes.
+    pub unsafe fn from_u64(id: u64) -> TaskId {
+        TaskId(id)
+    }
 }
 
 pub struct Task {
@@ -41,5 +49,13 @@ impl Task {
     pub fn poll(&mut self, context: &mut Context) -> Poll<()> {
         let future_ref = self.future.as_mut();
         future_ref.poll(context)
+    }
+}
+
+impl core::fmt::Debug for Task {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        f.debug_struct("Task")
+            .field("id", &self.id)
+            .finish()
     }
 }
