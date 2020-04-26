@@ -5,8 +5,6 @@ authors = ["mandragore <gkonstandinos@gmail.com>"]
 edition = "2018"
 
 [features]
-recursive_page_table = ["bootloader/recursive_page_table"]
-#map_physical_memory = ["bootloader/map_physical_memory"]
 x86 = []
 spawner = []
 external_allocator = []
