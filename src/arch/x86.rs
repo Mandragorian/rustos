@@ -54,6 +54,13 @@ pub fn write_port_u8(port_addr: u16, val: u8) {
     write_port(port_addr, val);
 }
 
+pub fn io_wait() {
+    // Port 0x80 is used during POST
+    // Linux kernel seems to think it is free for use
+    // (idea taken from https://wiki.osdev.org/Inline_Assembly/Examples#IO_WAIT
+    write_port_u8(0x80, 0);
+}
+
 #[inline]
 pub fn read_port_u16(port_addr: u16) -> u16 {
     read_port(port_addr)
