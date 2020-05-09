@@ -42,6 +42,19 @@ pub fn read_port_u8(port_addr: u16) -> u8 {
 }
 
 #[inline]
+pub fn write_port<T>(port_addr: u16, val: T)
+where T: x86_64::structures::port::PortReadWrite
+{
+    let mut port = x86_64::instructions::port::Port::new(port_addr);
+    unsafe { port.write(val) }
+}
+
+#[inline]
+pub fn write_port_u8(port_addr: u16, val: u8) {
+    write_port(port_addr, val);
+}
+
+#[inline]
 pub fn read_port_u16(port_addr: u16) -> u16 {
     read_port(port_addr)
 }
