@@ -9,7 +9,7 @@
 use core::panic::PanicInfo;
 
 extern crate alloc;
-use alloc::{alloc::alloc, boxed::Box, vec, vec::Vec, rc::Rc}; 
+use alloc::{alloc::alloc, boxed::Box, vec, vec::Vec, rc::Rc};
 use alloc::collections::BTreeMap;
 use alloc::alloc::Layout;
 
